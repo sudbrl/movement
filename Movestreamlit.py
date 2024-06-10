@@ -34,8 +34,8 @@ def compare_excel_files(previous_file, current_file, output_file):
 
     # Reading the necessary columns from the Excel files using dask
     cols_to_use = ['Main Code', 'Balance', 'Ac Type Desc', 'Name']
-    df_previous = dd.read_excel(temp_prev_path, usecols=cols_to_use)
-    df_this = dd.read_excel(temp_current_path, usecols=cols_to_use)
+    df_previous = dd.read_excel(open(temp_prev_path, 'rb'), usecols=cols_to_use)
+    df_this = dd.read_excel(open(temp_current_path, 'rb'), usecols=cols_to_use)
 
     # Filter, process, and compare the dataframes as before
 
