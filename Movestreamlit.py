@@ -27,10 +27,14 @@ def compare_excel_files(previous_file, current_file, output_file):
     with tempfile.NamedTemporaryFile(delete=False) as temp_prev_file:
         temp_prev_file.write(previous_file.read())
         temp_prev_path = temp_prev_file.name
+        print("Temp previous file path:", temp_prev_path)
+        print("Temp previous file exists:", os.path.exists(temp_prev_path))
     
     with tempfile.NamedTemporaryFile(delete=False) as temp_current_file:
         temp_current_file.write(current_file.read())
         temp_current_path = temp_current_file.name
+        print("Temp current file path:", temp_current_path)
+        print("Temp current file exists:", os.path.exists(temp_current_path))
 
     # Reading the necessary columns from the Excel files using dask
     cols_to_use = ['Main Code', 'Balance', 'Ac Type Desc', 'Name']
