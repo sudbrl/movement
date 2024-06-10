@@ -88,10 +88,10 @@ def compare_excel_files(previous_file, current_file, output_file):
 def main():
     st.title("Excel File Comparison Tool")
 
-    st.write("Upload the previous month's Excel file and this month's Excel file to compare them.")
+    st.write("Upload the previous period's Excel file and this period's Excel file to compare them. The Columns Required are Main Code and Balance")
 
-    previous_file = st.file_uploader("Upload Previous Month's Excel File", type=["xlsx"])
-    current_file = st.file_uploader("Upload This Month's Excel File", type=["xlsx"])
+    previous_file = st.file_uploader("Upload Previous Period's Excel File", type=["xlsx"])
+    current_file = st.file_uploader("Upload This Period's Excel File", type=["xlsx"])
 
     if previous_file and current_file:
         output_file = 'comparison_output.xlsx'
