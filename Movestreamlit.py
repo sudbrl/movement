@@ -14,6 +14,19 @@ def compare_excel_files(previous_file, current_file, output_file):
         st.error("Main Code column not found in this DataFrame")
         return
 
+    # Filter out specified account types or names
+    filter_values = [
+        "CURRENT ACCOUNT", 
+        "STAFF SOCIAL LOAN", 
+        "STAFF VEHICLE LOAN", 
+        "STAFF HOME LOAN", 
+        "STAFF FLEXIBLE LOAN", 
+        "STAFF HOME LOAN(COF)"
+    ]
+
+    df_previous = df_previous[~df_previous['Ac Type Desc'].isin(filter_values) & ~df_previous['Name'].str.contains("~~", na=False)]
+    df_this = df_this[~df_this['Ac Type Desc'].isin(filter_values) & ~df_this['Name'].str.contains("~~", na=False)]
+
     # Identifying Main Code values
     only_in_previous = df_previous[~df_previous['Main Code'].isin(df_this['Main Code'])]
     only_in_this = df_this[~df_this['Main Code'].isin(df_previous['Main Code'])]
@@ -35,10 +48,17 @@ def compare_excel_files(previous_file, current_file, output_file):
     adjusted_sum = opening_sum - settled_sum + new_sum + increase_decrease_sum
     closing_sum = df_this['Balance'].sum()
 
+    # Counting the number of accounts
+    opening_count = df_previous['Main Code'].nunique()
+    settled_count = only_in_previous['Main Code'].nunique()
+    new_count = only_in_this['Main Code'].nunique()
+    closing_count = df_this['Main Code'].nunique()
+
     # Creating the Reco DataFrame
     reco_data = {
         'Description': ['Opening', 'Settled', 'New', 'Increase/Decrease', 'Adjusted', 'Closing'],
-        'Amount': [opening_sum, settled_sum, new_sum, increase_decrease_sum, adjusted_sum, closing_sum]
+        'Amount': [opening_sum, settled_sum, new_sum, increase_decrease_sum, adjusted_sum, closing_sum],
+        'No of Acs': [opening_count, settled_count, new_count, "", "", closing_count]
     }
     df_reco = pd.DataFrame(reco_data)
 
