@@ -1,6 +1,6 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
+import dask.dataframe as dd
+from dask.diagnostics import ProgressBar
 from openpyxl import load_workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.styles import Alignment
@@ -11,12 +11,11 @@ def autofit_excel(file_path):
         ws = wb[sheet]
         for column_cells in ws.columns:
             max_length = 0
-            column = column_cells[0].column_letter
+            column = column_cells[0].column_letter  # Get the column name
             for cell in column_cells:
                 try:
-                    cell_value = str(cell.value)
-                    if len(cell_value) > max_length:
-                        max_length = len(cell_value)
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
                 except:
                     pass
             adjusted_width = (max_length + 2)
@@ -24,36 +23,45 @@ def autofit_excel(file_path):
     wb.save(file_path)
 
 def compare_excel_files(previous_file, current_file, output_file):
-    # Reading the necessary columns from the Excel files using pandas
+    # Reading the necessary columns from the Excel files using dask
     cols_to_use = ['Main Code', 'Balance', 'Ac Type Desc', 'Name']
-    df_previous = pd.read_excel(previous_file, usecols=cols_to_use)
-    df_this = pd.read_excel(current_file, usecols=cols_to_use)
+    df_previous = dd.read_excel(previous_file, usecols=cols_to_use)
+    df_this = dd.read_excel(current_file, usecols=cols_to_use)
 
-    # Filter out specified account types or names using .loc
-    filter_values = ["CURRENT ACCOUNT", "STAFF SOCIAL LOAN", "STAFF VEHICLE LOAN", 
+    # Filtering out specified account types or names using .loc
+    filter_values = ["CURRENT ACCOUNT", "STAFF SOCIAL LOAN", "STAFF VEHICLE LOAN",
                      "STAFF HOME LOAN", "STAFF FLEXIBLE LOAN", "STAFF HOME LOAN(COF)"]
-    df_previous = df_previous[~df_previous['Ac Type Desc'].isin(filter_values) & ~df_previous['Name'].str.contains("~~", na=False)]
-    df_this = df_this[~df_this['Ac Type Desc'].isin(filter_values) & ~df_this['Name'].str.contains("~~", na=False)]
+    df_previous = df_previous.loc[~df_previous['Ac Type Desc'].isin(filter_values) & ~df_previous['Name'].str.contains("~~", na=False)]
+    df_this = df_this.loc[~df_this['Ac Type Desc'].isin(filter_values) & ~df_this['Name'].str.contains("~~", na=False)]
 
-    merged = pd.merge(df_previous, df_this, on='Main Code', how='outer', suffixes=('_previous', '_this'))
-    only_in_previous = merged[merged['Balance_this'].isna()][['Main Code', 'Balance_previous']]
-    only_in_this = merged[merged['Balance_previous'].isna()][['Main Code', 'Balance_this']]
-    in_both = merged[~merged['Balance_previous'].isna() & ~merged['Balance_this'].isna()][['Main Code', 'Balance_previous', 'Balance_this']]
+    # Identifying Main Code values efficiently
+    previous_codes = set(df_previous['Main Code'].compute())
+    this_codes = set(df_this['Main Code'].compute())
+
+    only_in_previous = df_previous.loc[df_previous['Main Code'].isin(previous_codes - this_codes)].compute()
+    only_in_this = df_this.loc[df_this['Main Code'].isin(this_codes - previous_codes)].compute()
+    in_both = df_previous.loc[df_previous['Main Code'].isin(previous_codes & this_codes)].compute()
+
+    in_both = in_both.merge(
+        df_this[['Main Code', 'Balance']].compute(),
+        on='Main Code',
+        suffixes=('_previous', '_this')
+    )
     in_both['Change'] = in_both['Balance_this'] - in_both['Balance_previous']
 
     # Calculating the summary values for the Reco sheet
-    opening_sum = np.sum(df_previous['Balance'])
-    settled_sum = np.sum(only_in_previous['Balance_previous'])
-    new_sum = np.sum(only_in_this['Balance_this'])
-    increase_decrease_sum = np.sum(in_both['Change'])
+    opening_sum = df_previous['Balance'].sum().compute()
+    settled_sum = only_in_previous['Balance'].sum()
+    new_sum = only_in_this['Balance'].sum()
+    increase_decrease_sum = in_both['Change'].sum()
     adjusted_sum = opening_sum - settled_sum + new_sum + increase_decrease_sum
-    closing_sum = np.sum(df_this['Balance'])
+    closing_sum = df_this['Balance'].sum().compute()
 
     # Counting the number of accounts
-    opening_count = len(df_previous)
-    settled_count = len(only_in_previous)
-    new_count = len(only_in_this)
-    closing_count = len(df_this)
+    opening_count = len(previous_codes)
+    settled_count = len(previous_codes - this_codes)
+    new_count = len(this_codes - previous_codes)
+    closing_count = len(this_codes)
 
     # Creating the Reco DataFrame
     reco_data = {
