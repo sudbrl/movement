@@ -1,8 +1,12 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 from openpyxl import load_workbook
-from openpyxl.utils.dataframe import dataframe_to_rows
-from openpyxl.styles import Alignment
+
+def standardize_columns(df):
+    # Standardize column names: remove spaces and convert to Title Case
+    df.columns = [col.strip().title().replace(" ", "") for col in df.columns]
+    return df
 
 def autofit_excel(file_path):
     wb = load_workbook(file_path)
@@ -26,12 +30,16 @@ def compare_excel_files(previous_file, current_file, output_file):
     df_previous = pd.read_excel(previous_file)
     df_this = pd.read_excel(current_file)
 
-    # Ensuring 'Main Code' column exists in both DataFrames
-    if 'Main Code' not in df_previous.columns:
-        st.error("Main Code column not found in previous DataFrame")
+    # Standardize column names
+    df_previous = standardize_columns(df_previous)
+    df_this = standardize_columns(df_this)
+
+    # Ensuring 'MainCode' column exists in both DataFrames
+    if 'Maincode' not in df_previous.columns:
+        st.error("MainCode column not found in previous DataFrame")
         return
-    if 'Main Code' not in df_this.columns:
-        st.error("Main Code column not found in this DataFrame")
+    if 'Maincode' not in df_this.columns:
+        st.error("MainCode column not found in this DataFrame")
         return
 
     # Filter out specified account types or names
@@ -43,17 +51,17 @@ def compare_excel_files(previous_file, current_file, output_file):
         "STAFF FLEXIBLE LOAN", 
         "STAFF HOME LOAN(COF)"
     ]
-
-    df_previous = df_previous[~df_previous['Ac Type Desc'].isin(filter_values) & ~df_previous['Name'].str.contains("~~", na=False)]
-    df_this = df_this[~df_this['Ac Type Desc'].isin(filter_values) & ~df_this['Name'].str.contains("~~", na=False)]
+    
+    df_previous = df_previous[~df_previous['AcTypeDesc'].str.upper().isin(filter_values) & ~df_previous['Name'].str.contains("~~", case=False, na=False)]
+    df_this = df_this[~df_this['AcTypeDesc'].str.upper().isin(filter_values) & ~df_this['Name'].str.contains("~~", case=False, na=False)]
 
     # Identifying Main Code values
-    only_in_previous = df_previous[~df_previous['Main Code'].isin(df_this['Main Code'])]
-    only_in_this = df_this[~df_this['Main Code'].isin(df_previous['Main Code'])]
+    only_in_previous = df_previous[~df_previous['Maincode'].isin(df_this['Maincode'])]
+    only_in_this = df_this[~df_this['Maincode'].isin(df_previous['Maincode'])]
     in_both = pd.merge(
-        df_previous[['Main Code', 'Balance']], 
-        df_this[['Main Code', 'Balance']], 
-        on='Main Code', 
+        df_previous[['Maincode', 'Balance']], 
+        df_this[['Maincode', 'Balance']], 
+        on='Maincode', 
         suffixes=('_previous', '_this')
     )
 
@@ -69,10 +77,10 @@ def compare_excel_files(previous_file, current_file, output_file):
     closing_sum = df_this['Balance'].sum()
 
     # Counting the number of accounts
-    opening_count = df_previous['Main Code'].nunique()
-    settled_count = only_in_previous['Main Code'].nunique()
-    new_count = only_in_this['Main Code'].nunique()
-    closing_count = df_this['Main Code'].nunique()
+    opening_count = df_previous['Maincode'].nunique()
+    settled_count = only_in_previous['Maincode'].nunique()
+    new_count = only_in_this['Maincode'].nunique()
+    closing_count = df_this['Maincode'].nunique()
 
     # Creating the Reco DataFrame
     reco_data = {
