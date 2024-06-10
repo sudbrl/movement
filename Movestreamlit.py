@@ -4,9 +4,7 @@ import numpy as np
 from openpyxl import load_workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.styles import Alignment
-import numba as nb
 
-@nb.jit(nopython=True)
 def autofit_excel(file_path):
     wb = load_workbook(file_path)
     for sheet in wb.sheetnames:
