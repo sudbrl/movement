@@ -4,6 +4,7 @@ from openpyxl import load_workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.styles import Alignment
 
+@st.cache(show_spinner=False)
 def autofit_excel(file_path):
     wb = load_workbook(file_path)
     for sheet in wb.sheetnames:
@@ -21,6 +22,7 @@ def autofit_excel(file_path):
             ws.column_dimensions[column].width = adjusted_width
     wb.save(file_path)
 
+@st.cache(show_spinner=False)
 def compare_excel_files(previous_file, current_file, output_file):
     # Reading the necessary columns from the Excel files using pandas
     cols_to_use = ['Main Code', 'Balance', 'Ac Type Desc', 'Name']
@@ -81,7 +83,6 @@ def compare_excel_files(previous_file, current_file, output_file):
     # Autofit columns in the Excel file
     autofit_excel(output_file)
 
-    st.success("Comparison output saved to " + output_file)
     return output_file
 
 def main():
