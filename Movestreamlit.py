@@ -3,7 +3,6 @@ import pandas as pd
 from openpyxl import load_workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.styles import Alignment
-import time
 
 def autofit_excel(file_path):
     wb = load_workbook(file_path)
@@ -44,9 +43,9 @@ def compare_excel_files(previous_file, current_file, output_file):
     in_both = df_previous.loc[df_previous['Main Code'].isin(previous_codes & this_codes)]
 
     in_both = pd.merge(
-        in_both[['Main Code', 'Balance']],
-        df_this[['Main Code', 'Balance']],
-        on='Main Code',
+        in_both[['Main Code', 'Balance']], 
+        df_this[['Main Code', 'Balance']], 
+        on='Main Code', 
         suffixes=('_previous', '_this')
     )
     in_both['Change'] = in_both['Balance_this'] - in_both['Balance_previous']
@@ -111,4 +110,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
