@@ -5,7 +5,6 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.styles import Alignment
 import time
 
-@st.cache_data(show_spinner=False)
 def autofit_excel(file_path):
     wb = load_workbook(file_path)
     for sheet in wb.sheetnames:
@@ -23,7 +22,6 @@ def autofit_excel(file_path):
             ws.column_dimensions[column].width = adjusted_width
     wb.save(file_path)
 
-@st.cache_data(show_spinner=False)
 def compare_excel_files(previous_file, current_file, output_file, progress_callback):
     progress_callback(0.1, "Reading Excel files...")
     cols_to_use = ['Main Code', 'Balance', 'Ac Type Desc', 'Name']
@@ -121,3 +119,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
