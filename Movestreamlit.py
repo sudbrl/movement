@@ -100,13 +100,14 @@ def main():
             progress_bar.progress(progress / 100)
             status_text.markdown(f"### {status}")
 
-        with open('previous_file.xlsx', 'wb') as f:
-            f.write(previous_file.getbuffer())
+        with st.spinner("Processing..."):
+            with open('previous_file.xlsx', 'wb') as f:
+                f.write(previous_file.getbuffer())
         
-        with open('current_file.xlsx', 'wb') as f:
-            f.write(current_file.getbuffer())
+            with open('current_file.xlsx', 'wb') as f:
+                f.write(current_file.getbuffer())
         
-        result_file = compare_excel_files('previous_file.xlsx', 'current_file.xlsx', output_file, update_progress)
+            result_file = compare_excel_files('previous_file.xlsx', 'current_file.xlsx', output_file, update_progress)
 
         if result_file:
             with open(result_file, "rb") as file:
