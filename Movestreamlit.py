@@ -87,7 +87,7 @@ def compare_excel_files(previous_file, current_file, output_file):
 def main():
     st.title("File Comparison Tool")
 
-    st.write("Upload the previous period's Excel file and this period's Excel file to compare them. The Columns Required are Main Code and Balance")
+    st.write("Upload the previous period's Excel file and this period's Excel file to compare them. The columns required are Main Code and Balance")
 
     previous_file = st.file_uploader("Upload Previous Period's Excel File", type=["xlsx"])
     current_file = st.file_uploader("Upload This Period's Excel File", type=["xlsx"])
