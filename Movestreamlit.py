@@ -2,9 +2,8 @@ import streamlit as st
 import pandas as pd
 from openpyxl import load_workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
-from openpyxl.styles import Alignment
 
-@st.cache(show_spinner=False)
+@st.cache_data(show_spinner=False)
 def autofit_excel(file_path):
     wb = load_workbook(file_path)
     for sheet in wb.sheetnames:
@@ -22,7 +21,7 @@ def autofit_excel(file_path):
             ws.column_dimensions[column].width = adjusted_width
     wb.save(file_path)
 
-@st.cache(show_spinner=False)
+@st.cache_data(show_spinner=False)
 def compare_excel_files(previous_file, current_file, output_file):
     # Reading the necessary columns from the Excel files using pandas
     cols_to_use = ['Main Code', 'Balance', 'Ac Type Desc', 'Name']
@@ -95,7 +94,14 @@ def main():
 
     if previous_file and current_file:
         output_file = 'comparison_output.xlsx'
-        result_file = compare_excel_files(previous_file, current_file, output_file)
+        
+        with open('previous_file.xlsx', 'wb') as f:
+            f.write(previous_file.getbuffer())
+        
+        with open('current_file.xlsx', 'wb') as f:
+            f.write(current_file.getbuffer())
+        
+        result_file = compare_excel_files('previous_file.xlsx', 'current_file.xlsx', output_file)
 
         if result_file:
             with open(result_file, "rb") as file:
