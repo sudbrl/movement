@@ -23,18 +23,18 @@ def autofit_excel(file_path):
     wb.save(file_path)
 
 def compare_excel_files(previous_file, current_file, output_file, progress_callback):
-    progress_callback(0.1, "Reading Excel files...")
+    progress_callback(10, "Reading Excel files...")
     cols_to_use = ['Main Code', 'Balance', 'Ac Type Desc', 'Name']
     df_previous = pd.read_excel(previous_file, usecols=cols_to_use)
     df_this = pd.read_excel(current_file, usecols=cols_to_use)
     
-    progress_callback(0.2, "Filtering data...")
+    progress_callback(20, "Filtering data...")
     filter_values = ["CURRENT ACCOUNT", "STAFF SOCIAL LOAN", "STAFF VEHICLE LOAN", 
                      "STAFF HOME LOAN", "STAFF FLEXIBLE LOAN", "STAFF HOME LOAN(COF)"]
     df_previous = df_previous.loc[~df_previous['Ac Type Desc'].isin(filter_values) & ~df_previous['Name'].str.contains("~~", na=False)]
     df_this = df_this.loc[~df_this['Ac Type Desc'].isin(filter_values) & ~df_this['Name'].str.contains("~~", na=False)]
 
-    progress_callback(0.4, "Identifying differences...")
+    progress_callback(40, "Identifying differences...")
     previous_codes = set(df_previous['Main Code'])
     this_codes = set(df_this['Main Code'])
 
@@ -42,7 +42,7 @@ def compare_excel_files(previous_file, current_file, output_file, progress_callb
     only_in_this = df_this.loc[df_this['Main Code'].isin(this_codes - previous_codes)]
     in_both = df_previous.loc[df_previous['Main Code'].isin(previous_codes & this_codes)]
 
-    progress_callback(0.6, "Calculating changes...")
+    progress_callback(60, "Calculating changes...")
     in_both = pd.merge(
         in_both[['Main Code', 'Balance']], 
         df_this[['Main Code', 'Balance']], 
@@ -70,7 +70,7 @@ def compare_excel_files(previous_file, current_file, output_file, progress_callb
     }
     df_reco = pd.DataFrame(reco_data)
 
-    progress_callback(0.8, "Writing to Excel...")
+    progress_callback(80, "Writing to Excel...")
     with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
         only_in_previous.to_excel(writer, sheet_name='Settled', index=False)
         only_in_this.to_excel(writer, sheet_name='New', index=False)
@@ -78,7 +78,7 @@ def compare_excel_files(previous_file, current_file, output_file, progress_callb
         df_reco.to_excel(writer, sheet_name='Reco', index=False)
 
     autofit_excel(output_file)
-    progress_callback(1.0, "Completed")
+    progress_callback(100, "Completed")
 
     return output_file
 
@@ -95,10 +95,10 @@ def main():
         
         progress_bar = st.progress(0)
         status_text = st.empty()
-
+        
         def update_progress(progress, status):
-            progress_bar.progress(progress)
-            status_text.text(status)
+            progress_bar.progress(progress / 100)
+            status_text.markdown(f"### {status}")
 
         with open('previous_file.xlsx', 'wb') as f:
             f.write(previous_file.getbuffer())
@@ -119,4 +119,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
