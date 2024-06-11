@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from openpyxl import load_workbook
-from openpyxl.styles import Alignment
 
 def autofit_excel(file_path):
     wb = load_workbook(file_path)
@@ -21,9 +20,13 @@ def autofit_excel(file_path):
     wb.save(file_path)
 
 def compare_excel_files(previous_file, current_file, output_file):
-    cols_to_use = ['Main Code', 'Balance', 'Ac Type Desc', 'Name', 'Limit']
-    df_previous = pd.read_excel(previous_file, usecols=cols_to_use)
-    df_this = pd.read_excel(current_file, usecols=cols_to_use)
+    required_columns = ['Main Code', 'Balance', 'Ac Type Desc', 'Name', 'Limit']
+    try:
+        df_previous = pd.read_excel(previous_file, usecols=required_columns)
+        df_this = pd.read_excel(current_file, usecols=required_columns)
+    except ValueError as e:
+        st.error(f"Error reading Excel files: {e}")
+        return None
 
     # Filter out rows where Limit is 0
     df_previous = df_previous[df_previous['Limit'] != 0]
@@ -54,8 +57,9 @@ def compare_excel_files(previous_file, current_file, output_file):
     new_sum = only_in_this['Balance'].sum()
     increase_decrease_sum = in_both['Change'].sum()
 
-    # Swap the sign of settled_sum
-    settled_sum = -settled_sum
+    # Swap the sign of settled_sum if it is positive
+    if settled_sum > 0:
+        settled_sum = -settled_sum
 
     # Calculate adjusted sum
     adjusted_sum = opening_sum + settled_sum + new_sum + increase_decrease_sum
