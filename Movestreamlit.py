@@ -22,18 +22,26 @@ def autofit_excel(file_path):
     wb.save(file_path)
 
 def compare_excel_files(previous_file, current_file, output_file):
-    cols_to_use = ['Main Code', 'Balance', 'Limit', 'Ac Type Desc', 'Name']
-    df_previous = pd.read_excel(previous_file, usecols=lambda x: x in cols_to_use)
-    df_this = pd.read_excel(current_file, usecols=lambda x: x in cols_to_use)
+    df_previous = pd.read_excel(previous_file)
+    df_this = pd.read_excel(current_file)
 
+    # Ensure that compulsory columns are present
+    if 'Main Code' not in df_previous.columns or 'Balance' not in df_previous.columns:
+        raise ValueError("Previous file is missing required columns: 'Main Code' and 'Balance'")
+    if 'Main Code' not in df_this.columns or 'Balance' not in df_this.columns:
+        raise ValueError("Current file is missing required columns: 'Main Code' and 'Balance'")
+
+    # Exclude rows with Limit == 0 if the 'Limit' column is present
     if 'Limit' in df_previous.columns:
         df_previous = df_previous[df_previous['Limit'] != 0]
     if 'Limit' in df_this.columns:
         df_this = df_this[df_this['Limit'] != 0]
 
+    # Apply filters based on 'Ac Type Desc' and 'Name' if these columns are present
+    filter_values = ["CURRENT ACCOUNT", "STAFF SOCIAL LOAN", "STAFF VEHICLE LOAN", 
+                     "STAFF HOME LOAN", "STAFF FLEXIBLE LOAN", "STAFF HOME LOAN(COF)"]
+
     if 'Ac Type Desc' in df_previous.columns and 'Name' in df_previous.columns:
-        filter_values = ["CURRENT ACCOUNT", "STAFF SOCIAL LOAN", "STAFF VEHICLE LOAN", 
-                         "STAFF HOME LOAN", "STAFF FLEXIBLE LOAN", "STAFF HOME LOAN(COF)"]
         df_previous = df_previous.loc[~df_previous['Ac Type Desc'].isin(filter_values) & ~df_previous['Name'].str.contains("~~", na=False)]
     if 'Ac Type Desc' in df_this.columns and 'Name' in df_this.columns:
         df_this = df_this.loc[~df_this['Ac Type Desc'].isin(filter_values) & ~df_this['Name'].str.contains("~~", na=False)]
@@ -45,23 +53,21 @@ def compare_excel_files(previous_file, current_file, output_file):
     only_in_this = df_this.loc[df_this['Main Code'].isin(this_codes - previous_codes)]
     in_both = df_previous.loc[df_previous['Main Code'].isin(previous_codes & this_codes)]
 
-    if 'Balance' in df_previous.columns and 'Balance' in df_this.columns:
-        in_both = pd.merge(
-            in_both[['Main Code', 'Balance']], 
-            df_this[['Main Code', 'Balance']], 
-            on='Main Code', 
-            suffixes=('_previous', '_this')
-        )
-        in_both['Change'] = in_both['Balance_this'] - in_both['Balance_previous']
+    # Safe merge and calculation of balance changes
+    in_both = pd.merge(
+        in_both[['Main Code', 'Balance']], 
+        df_this[['Main Code', 'Balance']], 
+        on='Main Code', 
+        suffixes=('_previous', '_this')
+    )
+    in_both['Change'] = in_both['Balance_this'] - in_both['Balance_previous']
 
-        opening_sum = df_previous['Balance'].sum()
-        settled_sum = only_in_previous['Balance'].sum()
-        new_sum = only_in_this['Balance'].sum()
-        increase_decrease_sum = in_both['Change'].sum()
-        adjusted_sum = opening_sum - settled_sum + new_sum + increase_decrease_sum
-        closing_sum = df_this['Balance'].sum()
-    else:
-        opening_sum = settled_sum = new_sum = increase_decrease_sum = adjusted_sum = closing_sum = 0
+    opening_sum = df_previous['Balance'].sum()
+    settled_sum = only_in_previous['Balance'].sum()
+    new_sum = only_in_this['Balance'].sum()
+    increase_decrease_sum = in_both['Change'].sum()
+    adjusted_sum = opening_sum - settled_sum + new_sum + increase_decrease_sum
+    closing_sum = df_this['Balance'].sum()
 
     opening_count = len(previous_codes)
     settled_count = len(previous_codes - this_codes)
@@ -116,6 +122,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
