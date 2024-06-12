@@ -37,14 +37,15 @@ def compare_excel_files(previous_file, current_file, output_file):
     if 'Limit' in df_this.columns:
         df_this = df_this[df_this['Limit'] != 0]
 
-    # Apply filters based on 'Ac Type Desc' and 'Name' if these columns are present
+    # Apply filters based on 'Ac Type Desc' if this column is present
     filter_values = ["CURRENT ACCOUNT", "STAFF SOCIAL LOAN", "STAFF VEHICLE LOAN", 
-                     "STAFF HOME LOAN", "STAFF FLEXIBLE LOAN", "STAFF HOME LOAN(COF)"]
+                     "STAFF HOME LOAN", "STAFF FLEXIBLE LOAN", "STAFF HOME LOAN(COF)",
+                     "AcType Total", "Grand Total"]
 
-    if 'Ac Type Desc' in df_previous.columns and 'Name' in df_previous.columns:
-        df_previous = df_previous.loc[~df_previous['Ac Type Desc'].isin(filter_values) & ~df_previous['Name'].str.contains("~~", na=False)]
-    if 'Ac Type Desc' in df_this.columns and 'Name' in df_this.columns:
-        df_this = df_this.loc[~df_this['Ac Type Desc'].isin(filter_values) & ~df_this['Name'].str.contains("~~", na=False)]
+    if 'Ac Type Desc' in df_previous.columns:
+        df_previous = df_previous.loc[~df_previous['Ac Type Desc'].isin(filter_values)]
+    if 'Ac Type Desc' in df_this.columns:
+        df_this = df_this.loc[~df_this['Ac Type Desc'].isin(filter_values)]
 
     previous_codes = set(df_previous['Main Code'])
     this_codes = set(df_this['Main Code'])
@@ -122,7 +123,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
