@@ -22,30 +22,18 @@ def autofit_excel(file_path):
     wb.save(file_path)
 
 def compare_excel_files(previous_file, current_file, output_file):
-    df_previous = pd.read_excel(previous_file)
-    df_this = pd.read_excel(current_file)
+    cols_to_use = ['Main Code', 'Balance', 'Limit', 'Ac Type Desc', 'Name']
+    df_previous = pd.read_excel(previous_file, usecols=cols_to_use)
+    df_this = pd.read_excel(current_file, usecols=cols_to_use)
 
-    # Ensure that compulsory columns are present
-    if 'Main Code' not in df_previous.columns or 'Balance' not in df_previous.columns:
-        raise ValueError("Previous file is missing required columns: 'Main Code' and 'Balance'")
-    if 'Main Code' not in df_this.columns or 'Balance' not in df_this.columns:
-        raise ValueError("Current file is missing required columns: 'Main Code' and 'Balance'")
+    # Exclude rows with Limit == 0
+    df_previous = df_previous[df_previous['Limit'] != 0]
+    df_this = df_this[df_this['Limit'] != 0]
 
-    # Exclude rows with Limit == 0 if the 'Limit' column is present
-    if 'Limit' in df_previous.columns:
-        df_previous = df_previous[df_previous['Limit'] != 0]
-    if 'Limit' in df_this.columns:
-        df_this = df_this[df_this['Limit'] != 0]
-
-    # Apply filters based on 'Ac Type Desc' if this column is present
     filter_values = ["CURRENT ACCOUNT", "STAFF SOCIAL LOAN", "STAFF VEHICLE LOAN", 
-                     "STAFF HOME LOAN", "STAFF FLEXIBLE LOAN", "STAFF HOME LOAN(COF)",
-                     "AcType Total", "Grand Total"]
-
-    if 'Ac Type Desc' in df_previous.columns:
-        df_previous = df_previous.loc[~df_previous['Ac Type Desc'].isin(filter_values)]
-    if 'Ac Type Desc' in df_this.columns:
-        df_this = df_this.loc[~df_this['Ac Type Desc'].isin(filter_values)]
+                     "STAFF HOME LOAN", "STAFF FLEXIBLE LOAN", "STAFF HOME LOAN(COF)"]
+    df_previous = df_previous.loc[~df_previous['Ac Type Desc'].isin(filter_values) & ~df_previous['Name'].str.contains("~~", na=False)]
+    df_this = df_this.loc[~df_this['Ac Type Desc'].isin(filter_values) & ~df_this['Name'].str.contains("~~", na=False)]
 
     previous_codes = set(df_previous['Main Code'])
     this_codes = set(df_this['Main Code'])
@@ -54,7 +42,6 @@ def compare_excel_files(previous_file, current_file, output_file):
     only_in_this = df_this.loc[df_this['Main Code'].isin(this_codes - previous_codes)]
     in_both = df_previous.loc[df_previous['Main Code'].isin(previous_codes & this_codes)]
 
-    # Safe merge and calculation of balance changes
     in_both = pd.merge(
         in_both[['Main Code', 'Balance']], 
         df_this[['Main Code', 'Balance']], 
