@@ -13,27 +13,33 @@ def autofit_excel(file_path):
             column = column_cells[0].column_letter  # Get the column name
             for cell in column_cells:
                 try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
+                    max_length = max(max_length, len(str(cell.value)))
                 except:
                     pass
-            adjusted_width = (max_length + 2)
-            ws.column_dimensions[column].width = adjusted_width
+            ws.column_dimensions[column].width = max_length + 2
     wb.save(file_path)
 
 def compare_excel_files(previous_file, current_file, output_file):
     cols_to_use = ['Main Code', 'Balance', 'Limit', 'Ac Type Desc', 'Name']
-    df_previous = pd.read_excel(previous_file, usecols=cols_to_use)
-    df_this = pd.read_excel(current_file, usecols=cols_to_use)
+    df_previous = pd.read_excel(previous_file, usecols=lambda x: x in cols_to_use)
+    df_this = pd.read_excel(current_file, usecols=lambda x: x in cols_to_use)
 
-    # Exclude rows with Limit == 0
-    df_previous = df_previous[df_previous['Limit'] != 0]
-    df_this = df_this[df_this['Limit'] != 0]
+    # Apply 'Limit' filter if the column exists in any DataFrame
+    if 'Limit' in df_previous.columns or 'Limit' in df_this.columns:
+        df_previous = df_previous[df_previous.get('Limit', 1) != 0]  # Default to 1 if 'Limit' is missing
+        df_this = df_this[df_this.get('Limit', 1) != 0]  # Default to 1 if 'Limit' is missing
 
-    filter_values = ["CURRENT ACCOUNT", "STAFF SOCIAL LOAN", "STAFF VEHICLE LOAN", 
-                     "STAFF HOME LOAN", "STAFF FLEXIBLE LOAN", "STAFF HOME LOAN(COF)"]
-    df_previous = df_previous.loc[~df_previous['Ac Type Desc'].isin(filter_values) & ~df_previous['Name'].str.contains("~~", na=False)]
-    df_this = df_this.loc[~df_this['Ac Type Desc'].isin(filter_values) & ~df_this['Name'].str.contains("~~", na=False)]
+    # Apply 'Ac Type Desc' filter if the column exists in any DataFrame
+    if 'Ac Type Desc' in df_previous.columns or 'Ac Type Desc' in df_this.columns:
+        filter_values = ["CURRENT ACCOUNT", "STAFF SOCIAL LOAN", "STAFF VEHICLE LOAN", 
+                         "STAFF HOME LOAN", "STAFF FLEXIBLE LOAN", "STAFF HOME LOAN(COF)"]
+        df_previous = df_previous[~df_previous.get('Ac Type Desc', "").isin(filter_values)]  # Default to "" if missing
+        df_this = df_this[~df_this.get('Ac Type Desc', "").isin(filter_values)]  # Default to "" if missing
+
+    # Apply 'Name' filter if the column exists in any DataFrame
+    if 'Name' in df_previous.columns or 'Name' in df_this.columns:
+        df_previous = df_previous[~df_previous.get('Name', "").str.contains("~~", na=False)]  # Default to "" if missing
+        df_this = df_this[~df_this.get('Name', "").str.contains("~~", na=False)]  # Default to "" if missing
 
     previous_codes = set(df_previous['Main Code'])
     this_codes = set(df_this['Main Code'])
@@ -81,7 +87,6 @@ def compare_excel_files(previous_file, current_file, output_file):
 
 def main():
     st.title("File Comparison Tool")
-
     st.write("Upload the previous period's Excel file and this period's Excel file to compare them. The Columns Required are Main Code, Balance, and Limit. Get download link.")
 
     previous_file = st.file_uploader("Upload Previous Period's Excel File", type=["xlsx"])
