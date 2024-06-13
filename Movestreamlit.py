@@ -23,7 +23,7 @@ def find_columns_in_rows(df, required_cols, max_rows=3):
     for i in range(max_rows):
         if all(col in df.iloc[i].values for col in required_cols):
             df.columns = df.iloc[i]
-            return df.drop(index=i).reset_index(drop=True)
+            return df.drop(index=range(i + 1)).reset_index(drop=True)
     raise ValueError(f"Required columns {required_cols} not found in the first {max_rows} rows.")
 
 def compare_excel_files(previous_file, current_file, output_file):
