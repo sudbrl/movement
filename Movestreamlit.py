@@ -28,21 +28,21 @@ def compare_excel_files(previous_file, current_file, output_file):
     df_previous = df_previous[~df_previous['Main Code'].isin(['AcType Total', 'Grand Total'])]
     df_this = df_this[~df_this['Main Code'].isin(['AcType Total', 'Grand Total'])]
 
-    # Apply 'Limit' filter if the column exists in any DataFrame
+    # Apply 'Limit' filter if the column exists in the DataFrame
     if 'Limit' in df_previous.columns:
         df_previous = df_previous[df_previous['Limit'] != 0]
     if 'Limit' in df_this.columns:
         df_this = df_this[df_this['Limit'] != 0]
 
-    # Apply 'Ac Type Desc' filter if the column exists in any DataFrame
+    # Apply 'Ac Type Desc' filter if the column exists in the DataFrame
+    filter_values = ["CURRENT ACCOUNT", "STAFF SOCIAL LOAN", "STAFF VEHICLE LOAN", 
+                     "STAFF HOME LOAN", "STAFF FLEXIBLE LOAN", "STAFF HOME LOAN(COF)"]
     if 'Ac Type Desc' in df_previous.columns:
-        filter_values = ["CURRENT ACCOUNT", "STAFF SOCIAL LOAN", "STAFF VEHICLE LOAN", 
-                         "STAFF HOME LOAN", "STAFF FLEXIBLE LOAN", "STAFF HOME LOAN(COF)"]
         df_previous = df_previous[~df_previous['Ac Type Desc'].isin(filter_values)]
     if 'Ac Type Desc' in df_this.columns:
         df_this = df_this[~df_this['Ac Type Desc'].isin(filter_values)]
 
-    # Apply 'Name' filter if the column exists in any DataFrame
+    # Apply 'Name' filter if the column exists in the DataFrame
     if 'Name' in df_previous.columns:
         df_previous = df_previous[~df_previous['Name'].str.contains("~~", na=False)]
     if 'Name' in df_this.columns:
@@ -51,9 +51,9 @@ def compare_excel_files(previous_file, current_file, output_file):
     previous_codes = set(df_previous['Main Code'])
     this_codes = set(df_this['Main Code'])
 
-    only_in_previous = df_previous.loc[df_previous['Main Code'].isin(previous_codes - this_codes)]
-    only_in_this = df_this.loc[df_this['Main Code'].isin(this_codes - previous_codes)]
-    in_both = df_previous.loc[df_previous['Main Code'].isin(previous_codes & this_codes)]
+    only_in_previous = df_previous[df_previous['Main Code'].isin(previous_codes - this_codes)]
+    only_in_this = df_this[df_this['Main Code'].isin(this_codes - previous_codes)]
+    in_both = df_previous[df_previous['Main Code'].isin(previous_codes & this_codes)]
 
     in_both = pd.merge(
         in_both[['Main Code', 'Balance']], 
@@ -122,3 +122,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
