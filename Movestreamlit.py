@@ -24,6 +24,10 @@ def compare_excel_files(previous_file, current_file, output_file):
     df_previous = pd.read_excel(previous_file, usecols=lambda x: x in cols_to_use)
     df_this = pd.read_excel(current_file, usecols=lambda x: x in cols_to_use)
 
+    # Filter out rows where Main Code is 'AcType Total' or 'Grand Total'
+    df_previous = df_previous[~df_previous['Main Code'].isin(['AcType Total', 'Grand Total'])]
+    df_this = df_this[~df_this['Main Code'].isin(['AcType Total', 'Grand Total'])]
+
     # Apply 'Limit' filter if the column exists in any DataFrame
     if 'Limit' in df_previous.columns:
         df_previous = df_previous[df_previous['Limit'] != 0]
@@ -118,5 +122,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
