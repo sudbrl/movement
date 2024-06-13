@@ -19,21 +19,10 @@ def autofit_excel(file_path):
             ws.column_dimensions[column].width = max_length + 2
     wb.save(file_path)
 
-def find_columns_in_rows(df, required_cols, max_rows=3):
-    for i in range(max_rows):
-        if all(col in df.iloc[i].values for col in required_cols):
-            df.columns = df.iloc[i]
-            return df.drop(index=range(i + 1)).reset_index(drop=True)
-    raise ValueError(f"Required columns {required_cols} not found in the first {max_rows} rows.")
-
 def compare_excel_files(previous_file, current_file, output_file):
     cols_to_use = ['Main Code', 'Balance', 'Limit', 'Ac Type Desc', 'Name']
-    
-    df_previous = pd.read_excel(previous_file, header=None)
-    df_this = pd.read_excel(current_file, header=None)
-    
-    df_previous = find_columns_in_rows(df_previous, cols_to_use)
-    df_this = find_columns_in_rows(df_this, cols_to_use)
+    df_previous = pd.read_excel(previous_file, usecols=lambda x: x in cols_to_use)
+    df_this = pd.read_excel(current_file, usecols=lambda x: x in cols_to_use)
 
     # Filter out rows where Main Code is 'AcType Total' or 'Grand Total'
     df_previous = df_previous[~df_previous['Main Code'].isin(['AcType Total', 'Grand Total'])]
@@ -120,18 +109,16 @@ def main():
             with open('current_file.xlsx', 'wb') as f:
                 f.write(current_file.getbuffer())
 
-            try:
-                result_file = compare_excel_files('previous_file.xlsx', 'current_file.xlsx', output_file)
+            result_file = compare_excel_files('previous_file.xlsx', 'current_file.xlsx', output_file)
 
-                with open(result_file, "rb") as file:
-                    st.download_button(
-                        label="Download Comparison Output",
-                        data=file,
-                        file_name=output_file,
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
-            except ValueError as e:
-                st.error(f"Error: {e}")
+        if result_file:
+            with open(result_file, "rb") as file:
+                st.download_button(
+                    label="Download Comparison Output",
+                    data=file,
+                    file_name=output_file,
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
 
 if __name__ == "__main__":
     main()
