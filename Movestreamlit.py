@@ -37,9 +37,9 @@ def compare_excel_files(previous_file, current_file, output_file):
     if 'Limit' in df_this.columns:
         df_this = df_this[df_this['Limit'] != 0]
 
-    # Filter out rows where 'Main Code' is 'Total' or 'Grand Total'
+    # Filter out rows where 'Main Code' is 'AcType Total' or 'Grand Total'
     df_previous = df_previous[~df_previous['Main Code'].isin(['AcType Total', 'Grand Total'])]
-    df_this = df_this[~df_this['Main Code'].isin(['Total', 'Grand Total'])]
+    df_this = df_this[~df_this['Main Code'].isin(['AcType Total', 'Grand Total'])]
 
     previous_codes = set(df_previous['Main Code'])
     this_codes = set(df_this['Main Code'])
@@ -117,3 +117,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
