@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from openpyxl import load_workbook
-from openpyxl.styles import Alignment
+from openpyxl.styles import Alignment, numbers
 
 def autofit_excel(file_path):
     wb = load_workbook(file_path)
@@ -21,7 +21,7 @@ def autofit_excel(file_path):
         for row in ws.iter_rows(min_row=2, max_col=ws.max_column, max_row=ws.max_row):
             for cell in row:
                 if cell.column_letter != 'A':
-                    cell.number_format = 'accounting'
+                    cell.number_format = numbers.FORMAT_ACCOUNTING
 
     wb.save(file_path)
 
@@ -126,4 +126,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
