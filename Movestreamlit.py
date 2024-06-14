@@ -1,27 +1,31 @@
 import streamlit as st
 import pandas as pd
 from openpyxl import load_workbook
-from openpyxl.styles import numbers
+from openpyxl.styles import Alignment, Font
 
 def autofit_excel(file_path):
     wb = load_workbook(file_path)
-    for sheet in wb.sheetnames:
-        ws = wb[sheet]
-        for column_cells in ws.columns:
+    for sheetname in wb.sheetnames:
+        ws = wb[sheetname]
+
+        # Autofit columns based on content length
+        for col in ws.columns:
             max_length = 0
-            column = column_cells[0].column_letter  # Get the column name
-            for cell in column_cells:
+            column = col[0].column_letter  # Get the column name
+            for cell in col:
                 try:
-                    max_length = max(max_length, len(str(cell.value)))
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
                 except:
                     pass
-            ws.column_dimensions[column].width = max_length + 2
+            adjusted_width = (max_length + 2) * 1.2  # Adjust for padding and font width
+            ws.column_dimensions[column].width = adjusted_width
 
-        # Set number format to Accounting for all cells except 'Main Code'
-        for row in ws.iter_rows(min_row=2, max_col=ws.max_column, max_row=ws.max_row):
+        # Apply accounting format to numeric columns (except 'Main Code')
+        for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=2, max_col=ws.max_column):
             for cell in row:
-                if cell.column_letter != 'A':
-                    cell.number_format = numbers.FORMAT_ACCOUNTING
+                if isinstance(cell.value, (int, float)):
+                    cell.number_format = '#,##0.00_);[Red](#,##0.00)'  # Example accounting format
 
     wb.save(file_path)
 
@@ -133,3 +137,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
