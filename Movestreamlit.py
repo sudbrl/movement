@@ -8,14 +8,8 @@ def autofit_excel(file_path):
     for sheet in wb.sheetnames:
         ws = wb[sheet]
         for column_cells in ws.columns:
-            max_length = 0
-            column = column_cells[0].column_letter  # Get the column name
-            for cell in column_cells:
-                try:
-                    max_length = max(max_length, len(str(cell.value)))
-                except:
-                    pass
-            ws.column_dimensions[column].width = max_length + 2
+            max_length = max(len(str(cell.value)) for cell in column_cells if cell.value is not None)
+            ws.column_dimensions[column_cells[0].column_letter].width = max_length + 2
 
         # Set number format to Accounting for all cells except 'Main Code'
         for row in ws.iter_rows(min_row=2, max_col=ws.max_column, max_row=ws.max_row):
@@ -30,14 +24,13 @@ def find_columns_in_rows(df, cols_to_use, num_rows=3):
         df_header = df.iloc[i]
         if all(col in df_header.values for col in cols_to_use):
             df.columns = df_header
-            df = df.drop(range(i + 1))
-            return df
+            return df.drop(range(i + 1))
     raise ValueError(f"Required columns {cols_to_use} not found in the first {num_rows} rows.")
 
 def compare_excel_files(previous_file, current_file, output_file):
     cols_to_use = ['Main Code', 'Balance', 'Limit']
-    df_previous = pd.read_excel(previous_file, header=None)
-    df_this = pd.read_excel(current_file, header=None)
+    df_previous = pd.read_excel(previous_file, header=None, nrows=50)  # Read only first 50 rows to find headers
+    df_this = pd.read_excel(current_file, header=None, nrows=50)
 
     try:
         df_previous = find_columns_in_rows(df_previous, cols_to_use)
@@ -59,9 +52,9 @@ def compare_excel_files(previous_file, current_file, output_file):
     previous_codes = set(df_previous['Main Code'])
     this_codes = set(df_this['Main Code'])
 
-    only_in_previous = df_previous.loc[df_previous['Main Code'].isin(previous_codes - this_codes)]
-    only_in_this = df_this.loc[df_this['Main Code'].isin(this_codes - previous_codes)]
-    in_both = df_previous.loc[df_previous['Main Code'].isin(previous_codes & this_codes)]
+    only_in_previous = df_previous[df_previous['Main Code'].isin(previous_codes - this_codes)]
+    only_in_this = df_this[df_this['Main Code'].isin(this_codes - previous_codes)]
+    in_both = df_previous[df_previous['Main Code'].isin(previous_codes & this_codes)]
 
     in_both = pd.merge(
         in_both[['Main Code', 'Balance']], 
@@ -133,3 +126,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
