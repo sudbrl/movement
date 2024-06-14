@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from openpyxl import load_workbook
-from openpyxl.styles import numbers
+from openpyxl.styles import Alignment, numbers
 
 def autofit_excel(file_path):
     wb = load_workbook(file_path)
@@ -39,12 +39,8 @@ def compare_excel_files(previous_file, current_file, output_file):
     df_previous = pd.read_excel(previous_file, header=None)
     df_this = pd.read_excel(current_file, header=None)
 
-    try:
-        df_previous = find_columns_in_rows(df_previous, cols_to_use)
-        df_this = find_columns_in_rows(df_this, cols_to_use)
-    except ValueError as e:
-        st.error(e)
-        return None
+    df_previous = find_columns_in_rows(df_previous, cols_to_use)
+    df_this = find_columns_in_rows(df_this, cols_to_use)
 
     # Filter out rows where Main Code is 'AcType Total' or 'Grand Total'
     df_previous = df_previous[~df_previous['Main Code'].isin(['AcType Total', 'Grand Total'])]
@@ -102,7 +98,7 @@ def compare_excel_files(previous_file, current_file, output_file):
 
 def main():
     st.title("File Comparison Tool")
-    st.write("Upload the previous period's Excel file and this period's Excel file to compare them. The columns required are Main Code, Balance, and Limit. Get the download link.")
+    st.write("Upload the previous period's Excel file and this period's Excel file to compare them. The columns required are Main Code, Balance, and Limit. Get download link.")
 
     previous_file = st.file_uploader("Upload Previous Period's Excel File", type=["xlsx"])
     current_file = st.file_uploader("Upload This Period's Excel File", type=["xlsx"])
@@ -111,25 +107,22 @@ def main():
         output_file = 'comparison_output.xlsx'
 
         with st.spinner("Processing..."):
-            try:
-                with open('previous_file.xlsx', 'wb') as f:
-                    f.write(previous_file.getbuffer())
+            with open('previous_file.xlsx', 'wb') as f:
+                f.write(previous_file.getbuffer())
 
-                with open('current_file.xlsx', 'wb') as f:
-                    f.write(current_file.getbuffer())
+            with open('current_file.xlsx', 'wb') as f:
+                f.write(current_file.getbuffer())
 
-                result_file = compare_excel_files('previous_file.xlsx', 'current_file.xlsx', output_file)
-                
-                if result_file:
-                    with open(result_file, "rb") as file:
-                        st.download_button(
-                            label="Download Comparison Output",
-                            data=file,
-                            file_name=output_file,
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        )
-            except Exception as e:
-                st.error(f"An error occurred: {e}")
+            result_file = compare_excel_files('previous_file.xlsx', 'current_file.xlsx', output_file)
+
+        if result_file:
+            with open(result_file, "rb") as file:
+                st.download_button(
+                    label="Download Comparison Output",
+                    data=file,
+                    file_name=output_file,
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
 
 if __name__ == "__main__":
     main()
