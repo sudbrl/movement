@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from openpyxl import load_workbook
+from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.styles import Alignment, numbers
 
 def autofit_excel(file_path):
@@ -16,29 +17,27 @@ def autofit_excel(file_path):
                 except:
                     pass
             ws.column_dimensions[column].width = max_length + 2
-
-        # Set number format to Accounting for all cells except 'Main Code'
-        for row in ws.iter_rows(min_row=2, max_col=ws.max_column, max_row=ws.max_row):
-            for cell in row:
-                if cell.column_letter != 'A':
-                    cell.number_format = numbers.FORMAT_ACCOUNTING
-
     wb.save(file_path)
 
-def find_columns_in_rows(df, cols_to_use, num_rows=3):
-    for i in range(num_rows):
-        df_header = df.iloc[i]
-        if all(col in df_header.values for col in cols_to_use):
-            df.columns = df_header
-            df = df.drop(range(i + 1))
-            return df
-    raise ValueError(f"Required columns {cols_to_use} not found in the first {num_rows} rows.")
+def format_as_accounting(ws):
+    for row in ws.iter_rows(min_row=2):
+        for cell in row:
+            if isinstance(cell.value, (int, float)) and ws.cell(row=1, column=cell.column).value != 'Main Code':
+                cell.number_format = numbers.FORMAT_ACCOUNTING
+
+def find_columns_in_rows(df, required_cols, max_rows=3):
+    for i in range(max_rows):
+        if all(col in df.iloc[i].values for col in required_cols):
+            df.columns = df.iloc[i]
+            return df.drop(index=range(i + 1)).reset_index(drop=True)
+    raise ValueError(f"Required columns {required_cols} not found in the first {max_rows} rows.")
 
 def compare_excel_files(previous_file, current_file, output_file):
-    cols_to_use = ['Main Code', 'Balance', 'Limit']
+    cols_to_use = ['Main Code', 'Balance', 'Limit', 'Ac Type Desc', 'Name']
+    
     df_previous = pd.read_excel(previous_file, header=None)
     df_this = pd.read_excel(current_file, header=None)
-
+    
     df_previous = find_columns_in_rows(df_previous, cols_to_use)
     df_this = find_columns_in_rows(df_this, cols_to_use)
 
@@ -46,18 +45,32 @@ def compare_excel_files(previous_file, current_file, output_file):
     df_previous = df_previous[~df_previous['Main Code'].isin(['AcType Total', 'Grand Total'])]
     df_this = df_this[~df_this['Main Code'].isin(['AcType Total', 'Grand Total'])]
 
-    # Apply 'Limit' filter if the column exists in any DataFrame
+    # Apply 'Limit' filter if the column exists in the DataFrame
     if 'Limit' in df_previous.columns:
         df_previous = df_previous[df_previous['Limit'] != 0]
     if 'Limit' in df_this.columns:
         df_this = df_this[df_this['Limit'] != 0]
 
+    # Apply 'Ac Type Desc' filter if the column exists in the DataFrame
+    filter_values = ["CURRENT ACCOUNT", "STAFF SOCIAL LOAN", "STAFF VEHICLE LOAN", 
+                     "STAFF HOME LOAN", "STAFF FLEXIBLE LOAN", "STAFF HOME LOAN(COF)"]
+    if 'Ac Type Desc' in df_previous.columns:
+        df_previous = df_previous[~df_previous['Ac Type Desc'].isin(filter_values)]
+    if 'Ac Type Desc' in df_this.columns:
+        df_this = df_this[~df_this['Ac Type Desc'].isin(filter_values)]
+
+    # Apply 'Name' filter if the column exists in the DataFrame
+    if 'Name' in df_previous.columns:
+        df_previous = df_previous[~df_previous['Name'].str.contains("~~", na=False)]
+    if 'Name' in df_this.columns:
+        df_this = df_this[~df_this['Name'].str.contains("~~", na=False)]
+
     previous_codes = set(df_previous['Main Code'])
     this_codes = set(df_this['Main Code'])
 
-    only_in_previous = df_previous.loc[df_previous['Main Code'].isin(previous_codes - this_codes)]
-    only_in_this = df_this.loc[df_this['Main Code'].isin(this_codes - previous_codes)]
-    in_both = df_previous.loc[df_previous['Main Code'].isin(previous_codes & this_codes)]
+    only_in_previous = df_previous[df_previous['Main Code'].isin(previous_codes - this_codes)]
+    only_in_this = df_this[df_this['Main Code'].isin(this_codes - previous_codes)]
+    in_both = df_previous[df_previous['Main Code'].isin(previous_codes & this_codes)]
 
     in_both = pd.merge(
         in_both[['Main Code', 'Balance']], 
@@ -92,13 +105,18 @@ def compare_excel_files(previous_file, current_file, output_file):
         in_both.to_excel(writer, sheet_name='Movement', index=False)
         df_reco.to_excel(writer, sheet_name='Reco', index=False)
 
-    autofit_excel(output_file)
+    wb = load_workbook(output_file)
+    for sheet in wb.sheetnames:
+        ws = wb[sheet]
+        autofit_excel(output_file)
+        format_as_accounting(ws)
+    wb.save(output_file)
 
     return output_file
 
 def main():
     st.title("File Comparison Tool")
-    st.write("Upload the previous period's Excel file and this period's Excel file to compare them. The columns required are Main Code, Balance, and Limit. Get download link.")
+    st.write("Upload the previous period's Excel file and this period's Excel file to compare them. The columns required are Main Code and Balance. Get download link.")
 
     previous_file = st.file_uploader("Upload Previous Period's Excel File", type=["xlsx"])
     current_file = st.file_uploader("Upload This Period's Excel File", type=["xlsx"])
@@ -113,16 +131,18 @@ def main():
             with open('current_file.xlsx', 'wb') as f:
                 f.write(current_file.getbuffer())
 
-            result_file = compare_excel_files('previous_file.xlsx', 'current_file.xlsx', output_file)
+            try:
+                result_file = compare_excel_files('previous_file.xlsx', 'current_file.xlsx', output_file)
 
-        if result_file:
-            with open(result_file, "rb") as file:
-                st.download_button(
-                    label="Download Comparison Output",
-                    data=file,
-                    file_name=output_file,
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+                with open(result_file, "rb") as file:
+                    st.download_button(
+                        label="Download Comparison Output",
+                        data=file,
+                        file_name=output_file,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+            except ValueError as e:
+                st.error(f"Error: {e}")
 
 if __name__ == "__main__":
     main()
