@@ -15,8 +15,8 @@ def autofit_excel(file_path):
                 try:
                     if len(str(cell.value)) > max_length:
                         max_length = len(str(cell.value))
-                    except:
-                        pass
+                except:
+                    pass
             adjusted_width = (max_length + 2)
             ws.column_dimensions[column].width = adjusted_width
     wb.save(file_path)
@@ -39,19 +39,12 @@ def compare_excel_files(previous_file, current_file, output_file):
 
     # Apply filters based on 'Ac Type Desc' and 'Name' if these columns are present
     filter_values = ["CURRENT ACCOUNT", "STAFF SOCIAL LOAN", "STAFF VEHICLE LOAN", 
-                     "STAFF HOME LOAN", "STAFF FLEXIBLE LOAN", "STAFF HOME LOAN(COF)",
-                     "AcType Total", "Grand Total"]
+                     "STAFF HOME LOAN", "STAFF FLEXIBLE LOAN", "STAFF HOME LOAN(COF)"]
 
     if 'Ac Type Desc' in df_previous.columns and 'Name' in df_previous.columns:
-        df_previous = df_previous.loc[
-            ~df_previous['Ac Type Desc'].isin(filter_values) & 
-            ~df_previous['Name'].str.contains("~~", na=False)
-        ]
+        df_previous = df_previous.loc[~df_previous['Ac Type Desc'].isin(filter_values) & ~df_previous['Name'].str.contains("~~", na=False)]
     if 'Ac Type Desc' in df_this.columns and 'Name' in df_this.columns:
-        df_this = df_this.loc[
-            ~df_this['Ac Type Desc'].isin(filter_values) & 
-            ~df_this['Name'].str.contains("~~", na=False)
-        ]
+        df_this = df_this.loc[~df_this['Ac Type Desc'].isin(filter_values) & ~df_this['Name'].str.contains("~~", na=False)]
 
     previous_codes = set(df_previous['Main Code'])
     this_codes = set(df_this['Main Code'])
