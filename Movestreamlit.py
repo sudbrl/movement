@@ -5,6 +5,7 @@ from openpyxl.styles import numbers
 
 def autofit_excel(file_path):
     wb = load_workbook(file_path)
+    accounting_format = '"$"#,##0.00_);("$"#,##0.00)'  # Define the accounting format manually
     for sheet in wb.sheetnames:
         ws = wb[sheet]
         for column_cells in ws.columns:
@@ -15,7 +16,7 @@ def autofit_excel(file_path):
         for row in ws.iter_rows(min_row=2, max_col=ws.max_column, max_row=ws.max_row):
             for cell in row:
                 if cell.column_letter != 'A':
-                    cell.number_format = numbers.FORMAT_ACCOUNTING
+                    cell.number_format = accounting_format
 
     wb.save(file_path)
 
@@ -126,5 +127,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
