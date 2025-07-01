@@ -19,6 +19,7 @@ CATEGORY_NAMES = {
     'D': 'Doubtful',
     'B': 'Bad'
 }
+CATEGORY_ORDER = ['Good', 'Substandard', 'Doubtful', 'Bad']
 
 # -----------------------------
 # Utility Functions
@@ -68,7 +69,6 @@ def detect_slippage(df_prev, df_curr):
     full['Provision_rank_prev'] = prev_details['Provision_rank_prev']
     full['Provision_category_prev'] = prev_details['Provision_category_prev']
 
-    # Movement Column
     full['Movement'] = full.apply(lambda row: (
         "Slippage" if row['Provision_rank'] > row['Provision_rank_prev']
         else "Upgrade" if row['Provision_rank'] < row['Provision_rank_prev']
@@ -77,7 +77,8 @@ def detect_slippage(df_prev, df_curr):
 
     full.reset_index(inplace=True)
 
-    columns_out = KEEP_COLUMNS + ['Provision_initial', 'Provision_category_prev', 'Provision_category', 'Movement']
+    columns_out = ['Branch Name', 'Main Code', 'Ac Type Desc', 'Name', 'Limit', 'Balance',
+                   'Provision_category_prev', 'Provision_category', 'Movement']
     return full[columns_out].rename(columns={'Provision_category': 'Provision_category_curr'})
 
 def category_matrix(df):
@@ -88,6 +89,9 @@ def category_matrix(df):
         aggfunc='size',
         fill_value=0
     )
+
+    available_cols = [col for col in CATEGORY_ORDER if col in matrix.columns]
+    matrix = matrix.reindex(columns=available_cols)
     return matrix.reset_index()
 
 def summarize_matrix(df, group_col):
@@ -101,6 +105,8 @@ def summarize_matrix(df, group_col):
             aggfunc='size',
             fill_value=0
         )
+        available_cols = [col for col in CATEGORY_ORDER if col in mat.columns]
+        mat = mat.reindex(columns=available_cols)
         mat[group_col] = g
         matrices.append(mat.reset_index())
     summary_df = pd.concat(matrices, ignore_index=True, sort=False)
@@ -156,5 +162,6 @@ if uploaded_curr and uploaded_prev:
             )
 
         except Exception as e:
-            st.error("❌ An error occurred during processing:")
-            st.code(traceback.format_exc())
+            st.error("❌ An error occurred during processing.")
+            with st.expander("Show error details"):
+                st.code(traceback.format_exc())
