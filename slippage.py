@@ -170,11 +170,15 @@ def build_risk_metrics(matrix_df: pd.DataFrame) -> pd.DataFrame:
     mat = mat.reindex(index=CATEGORY_ORDER, columns=CATEGORY_ORDER, fill_value=0)
     result_rows = []
 
+    # Invert CATEGORY_NAMES for lookup from category name to code
+    CATEGORY_CODE_MAP = {v: k for k, v in CATEGORY_NAMES.items()}
+
+    ranks = np.array([PROVISION_MAP[CATEGORY_CODE_MAP[cat]] for cat in CATEGORY_ORDER])
+
     for index, row in mat.iterrows():
         row_values = row.values.astype(float)
         row_sum = row_values.sum()
 
-        # Skip empty rows
         if row_sum == 0:
             entropy = war = ud_ratio = cure_rate = asm = hazard = half_life = np.nan
         else:
@@ -184,11 +188,11 @@ def build_risk_metrics(matrix_df: pd.DataFrame) -> pd.DataFrame:
             entropy = -np.sum([p * np.log(p) for p in probs if p > 0])
 
             # WAR (Weighted Average Rating)
-            ranks = np.array([PROVISION_MAP[cat] for cat in CATEGORY_ORDER])
             war = np.sum(probs * ranks)
 
             # Upgrade/Downgrade ratio
-            current_rank = PROVISION_MAP.get(index, None)
+            current_code = CATEGORY_CODE_MAP.get(index, None)
+            current_rank = PROVISION_MAP.get(current_code, None)
             if current_rank is not None:
                 rank_diffs = ranks - current_rank
                 upgrades = probs[rank_diffs < 0].sum()
@@ -202,7 +206,7 @@ def build_risk_metrics(matrix_df: pd.DataFrame) -> pd.DataFrame:
             cure_rate = row_values[cure_idx] / (row_sum - row_values[cure_idx]) if (row_sum - row_values[cure_idx]) > 0 else np.nan
 
             # ASM (Average Step Movement)
-            diff_matrix = np.abs(ranks - PROVISION_MAP[index])
+            diff_matrix = np.abs(ranks - current_rank)
             asm = np.sum(probs * diff_matrix)
 
             # Hazard Rate
@@ -224,11 +228,8 @@ def build_risk_metrics(matrix_df: pd.DataFrame) -> pd.DataFrame:
 
     metrics_df = pd.DataFrame(result_rows)
 
-    # Merge back into original matrix
     full = pd.concat([mat.reset_index(), metrics_df.drop(columns=["Provision_category_prev"])], axis=1)
     return full
-
-
 
 # ----------------------------- #
 #  Excel export
@@ -240,9 +241,8 @@ def generate_excel(slippage_df, branch_summary, ac_type_summary, matrix):
         branch_summary.to_excel(writer, index=False, sheet_name="Summary by Branch")
         ac_type_summary.to_excel(writer, index=False, sheet_name="Summary by Ac Type")
 
-        cleaned_matrix, summary_metrics = build_risk_metrics(matrix)
-        cleaned_matrix.to_excel(writer, index=False, sheet_name="Category Matrix")
-        summary_metrics.to_excel(writer, index=False, sheet_name="Matrix Metrics")
+        matrix_metrics = build_risk_metrics(matrix)
+        matrix_metrics.to_excel(writer, index=False, sheet_name="Category Matrix Metrics")
 
     output.seek(0)
     return output
