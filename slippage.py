@@ -2,7 +2,7 @@
 import io
 import traceback
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import numpy as np
 import pandas as pd
@@ -45,13 +45,11 @@ def preprocess_df(df: pd.DataFrame) -> pd.DataFrame:
 
     df = df[KEEP_COLUMNS]
 
-    # Numeric coercion
     df["Limit"] = pd.to_numeric(df["Limit"], errors="coerce")
     df["Balance"] = pd.to_numeric(df["Balance"], errors="coerce")
     df = df.dropna(subset=["Limit", "Balance"])
     df = df[df["Limit"] != 0]
 
-    # Provision code cleaning
     df["Provision_initial"] = (
         df["Provision"].astype(str).str.upper().str[0]
     )
@@ -125,48 +123,41 @@ def detect_slippage(df_prev: pd.DataFrame, df_curr: pd.DataFrame) -> pd.DataFram
         "Provision_category_curr",
         "Movement",
     ]
-    return full[columns_out].rename(
-        columns={"Provision_category": "Provision_category_curr"}
-    )
+    return full[columns_out]
 
 # ----------------------------- #
 #  Pivot helpers
 # ----------------------------- #
 def category_matrix(df: pd.DataFrame) -> pd.DataFrame:
-    matrix = pd.pivot_table(
-        df,
-        index="Provision_category_prev",
-        columns="Provision_category_curr",
-        aggfunc="size",
-        fill_value=0,
+    """
+    Returns transition-count matrix with columns named Provision_category_curr.
+    """
+    matrix = (
+        df.groupby(["Provision_category_prev", "Provision_category"])
+        .size()
+        .unstack(fill_value=0)
     )
 
-    available_cols = [col for col in CATEGORY_ORDER if col in matrix.columns]
-    matrix = matrix.reindex(columns=available_cols)
+    matrix = matrix.reindex(index=CATEGORY_ORDER, columns=CATEGORY_ORDER, fill_value=0)
+    matrix = matrix.rename_axis(columns={"Provision_category": "Provision_category_curr"})
     return matrix.reset_index()
 
 def summarize_matrix(df: pd.DataFrame, group_col: str) -> pd.DataFrame:
     matrices = []
     for g in df[group_col].unique():
         sub = df[df[group_col] == g]
-        mat = pd.pivot_table(
-            sub,
-            index="Provision_category_prev",
-            columns="Provision_category_curr",
-            aggfunc="size",
-            fill_value=0,
+        mat = (
+            sub.groupby(["Provision_category_prev", "Provision_category"])
+            .size()
+            .unstack(fill_value=0)
         )
-        available_cols = [col for col in CATEGORY_ORDER if col in mat.columns]
-        mat = mat.reindex(columns=available_cols)
+        mat = mat.reindex(index=CATEGORY_ORDER, columns=CATEGORY_ORDER, fill_value=0)
+        mat = mat.rename_axis(columns={"Provision_category": "Provision_category_curr"})
         mat[group_col] = g
         matrices.append(mat.reset_index())
+
     summary_df = pd.concat(matrices, ignore_index=True, sort=False)
     cols = [group_col] + [c for c in summary_df.columns if c != group_col]
-
-    for col in summary_df.columns:
-        if summary_df[col].dtype in ["float64", "int64"]:
-            summary_df[col] = summary_df[col].fillna(0).astype(int)
-
     return summary_df[cols]
 
 # ----------------------------- #
@@ -174,21 +165,19 @@ def summarize_matrix(df: pd.DataFrame, group_col: str) -> pd.DataFrame:
 # ----------------------------- #
 def build_risk_metrics(matrix_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Computes Shannon Entropy, WAR, Upgrade/Downgrade Ratio, Cure Rate,
-    ASM, Hazard Rate, Half-Life, and Chi-square p-value from the
-    transition matrix and appends them as new columns.
+    Computes requested risk metrics and appends them as new columns.
     """
     mat = matrix_df.set_index("Provision_category_prev")
     mat = mat.reindex(index=CATEGORY_ORDER, columns=CATEGORY_ORDER, fill_value=0)
     T = mat.values.astype(float)
 
-    # Steady-state
+    # Steady-state distribution
     marginal = T.sum(axis=1)
     pi = marginal / marginal.sum()
     pi = pi[pi > 0]
     shannon = -np.sum(pi * np.log(pi)) if pi.size else np.nan
 
-    # Weighted Average Rate
+    # Weighted Average Rate (WAR)
     ranks = np.array([PROVISION_MAP[c] for c in CATEGORY_ORDER])
     row_probs = T / T.sum(axis=1, keepdims=True)
     avg_rank = (row_probs * ranks).sum(axis=1)
@@ -200,14 +189,15 @@ def build_risk_metrics(matrix_df: pd.DataFrame) -> pd.DataFrame:
     ud_ratio = upgrade / downgrade if downgrade else np.nan
 
     # Cure Rate
-    non_good_prev = marginal - T[:, CATEGORY_ORDER.index("Good")]
-    cure = T[:, CATEGORY_ORDER.index("Good")].sum() / non_good_prev.sum() if non_good_prev.sum() else np.nan
+    good_idx = CATEGORY_ORDER.index("Good")
+    non_good_prev = marginal - T[:, good_idx]
+    cure = T[:, good_idx].sum() / non_good_prev.sum() if non_good_prev.sum() else np.nan
 
     # Average State Migration (ASM)
     diff = np.abs(ranks[:, None] - ranks[None, :])
     asm = np.sum(T * diff) / T.sum()
 
-    # Hazard & Half-Life
+    # Hazard Rate & Half-Life
     hazard = 1 - np.diag(T) / marginal
     avg_hazard = np.average(hazard, weights=marginal)
     half_life = (
@@ -216,10 +206,10 @@ def build_risk_metrics(matrix_df: pd.DataFrame) -> pd.DataFrame:
         else np.nan
     )
 
-    # Chi-square
+    # Chi-square test
     _, p_value, _, _ = chi2_contingency(T)
 
-    # Append
+    # Append metrics
     out = matrix_df.copy()
     out["ShananonEntropy"] = shannon
     out["WAR"] = war
