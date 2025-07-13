@@ -170,29 +170,28 @@ def build_risk_metrics(matrix_df: pd.DataFrame) -> pd.DataFrame:
     mat = mat.reindex(index=CATEGORY_ORDER, columns=CATEGORY_ORDER, fill_value=0)
     result_rows = []
 
-    # Invert CATEGORY_NAMES for lookup from category name to code
-    CATEGORY_CODE_MAP = {v: k for k, v in CATEGORY_NAMES.items()}
-
-    ranks = np.array([PROVISION_MAP[CATEGORY_CODE_MAP[cat]] for cat in CATEGORY_ORDER])
+    ranks = np.array([PROVISION_MAP[cat[0]] for cat in CATEGORY_ORDER])  # Use first letter keys from categories
 
     for index, row in mat.iterrows():
         row_values = row.values.astype(float)
         row_sum = row_values.sum()
 
+        # Skip empty rows
         if row_sum == 0:
-            entropy = war = ud_ratio = cure_rate = asm = hazard = half_life = np.nan
+            entropy = war = ud_ratio = cure_rate = hazard = half_life = np.nan
         else:
             probs = row_values / row_sum
 
-            # Shannon Entropy
-            entropy = -np.sum([p * np.log(p) for p in probs if p > 0])
+            # Shannon Entropy with log base 2
+            entropy = -np.sum([p * np.log2(p) for p in probs if p > 0])
 
-            # WAR (Weighted Average Rating)
+            # WAR (Weighted Average Rank)
+            # Map category first letter to rank
+            # index like "Good", use first letter "G"
+            current_rank = PROVISION_MAP.get(index[0], None)
             war = np.sum(probs * ranks)
 
             # Upgrade/Downgrade ratio
-            current_code = CATEGORY_CODE_MAP.get(index, None)
-            current_rank = PROVISION_MAP.get(current_code, None)
             if current_rank is not None:
                 rank_diffs = ranks - current_rank
                 upgrades = probs[rank_diffs < 0].sum()
@@ -201,19 +200,16 @@ def build_risk_metrics(matrix_df: pd.DataFrame) -> pd.DataFrame:
             else:
                 ud_ratio = np.nan
 
-            # Cure rate (to "Good")
+            # Cure Rate (to "Good")
             cure_idx = CATEGORY_ORDER.index("Good")
             cure_rate = row_values[cure_idx] / (row_sum - row_values[cure_idx]) if (row_sum - row_values[cure_idx]) > 0 else np.nan
 
-            # ASM (Average Step Movement)
-            diff_matrix = np.abs(ranks - current_rank)
-            asm = np.sum(probs * diff_matrix)
+            # Hazard Rate as proportion transitioning to "Bad"
+            bad_idx = CATEGORY_ORDER.index("Bad")
+            hazard = row_values[bad_idx] / row_sum
 
-            # Hazard Rate
-            same_idx = CATEGORY_ORDER.index(index)
-            hazard = 1 - probs[same_idx]
-            avg_hazard = hazard
-            half_life = np.log(0.5) / np.log(1 - avg_hazard) if 0 < avg_hazard < 1 else np.nan
+            # Half-life based on hazard rate
+            half_life = np.log(0.5) / np.log(1 - hazard) if 0 < hazard < 1 else np.nan
 
         result_rows.append({
             "Provision_category_prev": index,
@@ -221,15 +217,16 @@ def build_risk_metrics(matrix_df: pd.DataFrame) -> pd.DataFrame:
             "WAR": war,
             "UpgradeDowngradeRatio": ud_ratio,
             "CureRate": cure_rate,
-            "ASM": asm,
-            "HazardRate": avg_hazard,
+            "HazardRate": hazard,
             "HalfLife": half_life
         })
 
     metrics_df = pd.DataFrame(result_rows)
 
+    # Merge back into original matrix
     full = pd.concat([mat.reset_index(), metrics_df.drop(columns=["Provision_category_prev"])], axis=1)
     return full
+
 
 # ----------------------------- #
 #  Excel export
