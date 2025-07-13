@@ -29,7 +29,7 @@ CATEGORY_NAMES: Dict[str, str] = {
     "D": "Doubtful",
     "B": "Bad",
 }
-CATEGORY_ORDER: List[str] = ["Good", "Substandard", "Doubtful", "Bad"]
+CATEGORY_ORDER: List[str] = ["Good", "Watchlist", "Substandard", "Doubtful", "Bad"]
 
 # ----------------------------- #
 #  Pre-processing
@@ -135,7 +135,7 @@ def category_matrix(df: pd.DataFrame) -> pd.DataFrame:
         fill_value=0,
     )
     available_cols = [col for col in CATEGORY_ORDER if col in matrix.columns]
-    matrix = matrix.reindex(columns=available_cols)
+    matrix = matrix.reindex(index=CATEGORY_ORDER, columns=available_cols, fill_value=0)
     return matrix.reset_index()
 
 def summarize_matrix(df: pd.DataFrame, group_col: str) -> pd.DataFrame:
@@ -150,7 +150,7 @@ def summarize_matrix(df: pd.DataFrame, group_col: str) -> pd.DataFrame:
             fill_value=0,
         )
         available_cols = [col for col in CATEGORY_ORDER if col in mat.columns]
-        mat = mat.reindex(columns=available_cols)
+        mat = mat.reindex(index=CATEGORY_ORDER, columns=available_cols, fill_value=0)
         mat[group_col] = g
         matrices.append(mat.reset_index())
     summary_df = pd.concat(matrices, ignore_index=True, sort=False)
@@ -163,31 +163,28 @@ def summarize_matrix(df: pd.DataFrame, group_col: str) -> pd.DataFrame:
     return summary_df[cols]
 
 # ----------------------------- #
-#  Risk / transition metrics
+#  Risk / transition metrics with Excel formulas
 # ----------------------------- #
 def build_risk_metrics(matrix_df: pd.DataFrame) -> pd.DataFrame:
     mat = matrix_df.set_index("Provision_category_prev")
     mat = mat.reindex(index=CATEGORY_ORDER, columns=CATEGORY_ORDER, fill_value=0)
     result_rows = []
 
-    ranks = np.array([PROVISION_MAP[cat[0]] for cat in CATEGORY_ORDER])  # Use first letter keys from categories
+    ranks = np.array([PROVISION_MAP[cat[0]] for cat in CATEGORY_ORDER])  # G, W, S, D, B
 
     for index, row in mat.iterrows():
         row_values = row.values.astype(float)
         row_sum = row_values.sum()
 
-        # Skip empty rows
         if row_sum == 0:
             entropy = war = ud_ratio = cure_rate = hazard = half_life = np.nan
         else:
             probs = row_values / row_sum
 
-            # Shannon Entropy with log base 2
+            # Shannon Entropy (log base 2)
             entropy = -np.sum([p * np.log2(p) for p in probs if p > 0])
 
-            # WAR (Weighted Average Rank)
-            # Map category first letter to rank
-            # index like "Good", use first letter "G"
+            # Weighted Average Rank (WAR)
             current_rank = PROVISION_MAP.get(index[0], None)
             war = np.sum(probs * ranks)
 
@@ -204,11 +201,11 @@ def build_risk_metrics(matrix_df: pd.DataFrame) -> pd.DataFrame:
             cure_idx = CATEGORY_ORDER.index("Good")
             cure_rate = row_values[cure_idx] / (row_sum - row_values[cure_idx]) if (row_sum - row_values[cure_idx]) > 0 else np.nan
 
-            # Hazard Rate as proportion transitioning to "Bad"
+            # Hazard Rate (to "Bad")
             bad_idx = CATEGORY_ORDER.index("Bad")
             hazard = row_values[bad_idx] / row_sum
 
-            # Half-life based on hazard rate
+            # Half-life based on hazard
             half_life = np.log(0.5) / np.log(1 - hazard) if 0 < hazard < 1 else np.nan
 
         result_rows.append({
@@ -222,66 +219,63 @@ def build_risk_metrics(matrix_df: pd.DataFrame) -> pd.DataFrame:
         })
 
     metrics_df = pd.DataFrame(result_rows)
-
-    # Merge back into original matrix
     full = pd.concat([mat.reset_index(), metrics_df.drop(columns=["Provision_category_prev"])], axis=1)
     return full
 
-
 # ----------------------------- #
-#  Excel export
+#  Excel export with formulas for user inspection
 # ----------------------------- #
 def generate_excel(slippage_df, branch_summary, ac_type_summary, matrix):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        # Write slippage data
         slippage_df.to_excel(writer, index=False, sheet_name="Slippage Accounts")
         branch_summary.to_excel(writer, index=False, sheet_name="Summary by Branch")
         ac_type_summary.to_excel(writer, index=False, sheet_name="Summary by Ac Type")
 
-        matrix_metrics = build_risk_metrics(matrix)
-        matrix_metrics.to_excel(writer, index=False, sheet_name="Category Matrix Metrics")
+        # Write transition matrix with provision categories as rows/columns
+        matrix.to_excel(writer, index=False, sheet_name="Transition Matrix")
 
-    output.seek(0)
-    return output
+        # Write risk metrics table with formulas linked to the matrix sheet
+        workbook = writer.book
+        ws_metrics = workbook.add_worksheet("Matrix Metrics")
+        writer.sheets["Matrix Metrics"] = ws_metrics
 
+        # Write headers
+        headers = [
+            "Provision_category_prev",
+            *CATEGORY_ORDER,
+            "ShannonEntropy",
+            "WAR",
+            "UpgradeDowngradeRatio",
+            "CureRate",
+            "HazardRate",
+            "HalfLife",
+        ]
+        ws_metrics.write_row(0, 0, headers)
 
-# ----------------------------- #
-#  Streamlit UI
-# ----------------------------- #
-st.set_page_config(page_title="📉 Slippage Report Generator", layout="centered")
-st.title("📊 Slippage Report Generator")
+        # Write provision categories in col A
+        for i, category in enumerate(CATEGORY_ORDER, start=1):
+            ws_metrics.write(i, 0, category)
 
-st.header("📁 Upload Excel Files")
-uploaded_curr = st.file_uploader("📅 Upload Current Period Excel File", type=["xlsx"])
-uploaded_prev = st.file_uploader("🕰️ Upload Previous Period Excel File", type=["xlsx"])
+        n_cats = len(CATEGORY_ORDER)
+        # Write transition counts from "Transition Matrix" sheet as references
+        # Matrix starts at A1 in Transition Matrix sheet, provision_category_prev in col A
+        # Row i+2 in Excel because of header and 1-based index
+        for i in range(n_cats):
+            # Write provision categories as columns headers (row 0)
+            ws_metrics.write(0, i + 1, CATEGORY_ORDER[i])
+            for j in range(n_cats):
+                # Excel row and col index offset by +2 and +2 to account for header and 1-based index on Transition Matrix
+                cell_ref = f"'Transition Matrix'!{chr(ord('B') + j)}{i + 2}"
+                ws_metrics.write_formula(i + 1, j + 1, f"={cell_ref}")
 
-if uploaded_curr and uploaded_prev:
-    with st.spinner("🔄 Generating Slippage Report..."):
-        try:
-            df_curr = pd.read_excel(uploaded_curr, header=0)
-            df_prev = pd.read_excel(uploaded_prev, header=0)
+        # Write formulas for metrics for each row
+        for i in range(n_cats):
+            row_excel = i + 2  # Excel row (1-based + header)
 
-            df_curr = preprocess_df(df_curr)
-            df_prev = preprocess_df(df_prev)
+            # Total row sum
+            total_formula = f"=SUM(B{row_excel}:F{row_excel})"
 
-            slippage_df = detect_slippage(df_prev, df_curr)
-
-            branch_summary = summarize_matrix(slippage_df, "Branch Name")
-            ac_type_summary = summarize_matrix(slippage_df, "Ac Type Desc")
-            matrix = category_matrix(slippage_df)
-
-            excel_data = generate_excel(slippage_df, branch_summary, ac_type_summary, matrix)
-
-            st.success("✅ Report Ready!")
-
-            st.download_button(
-                label="📤 Download Excel Report",
-                data=excel_data,
-                file_name=f"slippage_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
-
-        except Exception as e:
-            st.error("❌ An error occurred during processing.")
-            with st.expander("Show error details"):
-                st.code(traceback.format_exc())
+            # Shannon Entropy formula (using log base 2)
+            # =-SUMPRODUCT((B2:F2/{total})*(LOG(B2:F2/{total},2))
