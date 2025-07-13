@@ -168,54 +168,66 @@ def summarize_matrix(df: pd.DataFrame, group_col: str) -> pd.DataFrame:
 def build_risk_metrics(matrix_df: pd.DataFrame) -> pd.DataFrame:
     mat = matrix_df.set_index("Provision_category_prev")
     mat = mat.reindex(index=CATEGORY_ORDER, columns=CATEGORY_ORDER, fill_value=0)
-    T = mat.values.astype(float)
+    result_rows = []
 
-    marginal = T.sum(axis=1)
-    pi = marginal / marginal.sum()
-    pi = pi[pi > 0]
-    shannon = -np.sum(pi * np.log(pi)) if pi.size else np.nan
+    for index, row in mat.iterrows():
+        row_values = row.values.astype(float)
+        row_sum = row_values.sum()
 
-    # Fix: Reverse CATEGORY_NAMES to get rank values
-    reverse_category = {v: k for k, v in CATEGORY_NAMES.items()}
-    ranks = np.array([PROVISION_MAP[reverse_category[c]] for c in CATEGORY_ORDER])
+        # Skip empty rows
+        if row_sum == 0:
+            entropy = war = ud_ratio = cure_rate = asm = hazard = half_life = np.nan
+        else:
+            probs = row_values / row_sum
 
-    row_probs = T / T.sum(axis=1, keepdims=True)
-    avg_rank = (row_probs * ranks).sum(axis=1)
-    war = np.average(avg_rank, weights=marginal)
+            # Shannon Entropy
+            entropy = -np.sum([p * np.log(p) for p in probs if p > 0])
 
-    downgrade = np.triu(T, k=1).sum()
-    upgrade = np.tril(T, k=-1).sum()
-    ud_ratio = upgrade / downgrade if downgrade else np.nan
+            # WAR (Weighted Average Rating)
+            ranks = np.array([PROVISION_MAP[cat] for cat in CATEGORY_ORDER])
+            war = np.sum(probs * ranks)
 
-    non_good_prev = marginal - T[:, CATEGORY_ORDER.index("Good")]
-    cure = T[:, CATEGORY_ORDER.index("Good")].sum() / non_good_prev.sum() if non_good_prev.sum() else np.nan
+            # Upgrade/Downgrade ratio
+            current_rank = PROVISION_MAP.get(index, None)
+            if current_rank is not None:
+                rank_diffs = ranks - current_rank
+                upgrades = probs[rank_diffs < 0].sum()
+                downgrades = probs[rank_diffs > 0].sum()
+                ud_ratio = upgrades / downgrades if downgrades > 0 else np.nan
+            else:
+                ud_ratio = np.nan
 
-    diff = np.abs(ranks[:, None] - ranks[None, :])
-    asm = np.sum(T * diff) / T.sum()
+            # Cure rate (to "Good")
+            cure_idx = CATEGORY_ORDER.index("Good")
+            cure_rate = row_values[cure_idx] / (row_sum - row_values[cure_idx]) if (row_sum - row_values[cure_idx]) > 0 else np.nan
 
-    hazard = 1 - np.diag(T) / marginal
-    avg_hazard = np.average(hazard, weights=marginal)
-    half_life = (
-        np.log(0.5) / np.log(1 - avg_hazard)
-        if avg_hazard and 0 < avg_hazard < 1
-        else np.nan
-    )
+            # ASM (Average Step Movement)
+            diff_matrix = np.abs(ranks - PROVISION_MAP[index])
+            asm = np.sum(probs * diff_matrix)
 
-    _, p_value, _, _ = chi2_contingency(T)
+            # Hazard Rate
+            same_idx = CATEGORY_ORDER.index(index)
+            hazard = 1 - probs[same_idx]
+            avg_hazard = hazard
+            half_life = np.log(0.5) / np.log(1 - avg_hazard) if 0 < avg_hazard < 1 else np.nan
 
-    # Compose summary row as DataFrame
-    summary = pd.DataFrame([{
-        "ShannonEntropy": shannon,
-        "WAR": war,
-        "UpgradeDowngradeRatio": ud_ratio,
-        "CureRate": cure,
-        "ASM": asm,
-        "HazardRate": avg_hazard,
-        "HalfLife": half_life,
-        "ChiSquare_pvalue": p_value,
-    }])
+        result_rows.append({
+            "Provision_category_prev": index,
+            "ShannonEntropy": entropy,
+            "WAR": war,
+            "UpgradeDowngradeRatio": ud_ratio,
+            "CureRate": cure_rate,
+            "ASM": asm,
+            "HazardRate": avg_hazard,
+            "HalfLife": half_life
+        })
 
-    return matrix_df, summary
+    metrics_df = pd.DataFrame(result_rows)
+
+    # Merge back into original matrix
+    full = pd.concat([mat.reset_index(), metrics_df.drop(columns=["Provision_category_prev"])], axis=1)
+    return full
+
 
 
 # ----------------------------- #
