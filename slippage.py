@@ -203,16 +203,20 @@ def build_risk_metrics(matrix_df: pd.DataFrame) -> pd.DataFrame:
 
     _, p_value, _, _ = chi2_contingency(T)
 
-    out = matrix_df.copy()
-    out["ShananonEntropy"] = shannon
-    out["WAR"] = war
-    out["UpgradeDowngradeRatio"] = ud_ratio
-    out["CureRate"] = cure
-    out["ASM"] = asm
-    out["HazardRate"] = avg_hazard
-    out["HalfLife"] = half_life
-    out["ChiSquare_pvalue"] = p_value
-    return out
+    # Compose summary row as DataFrame
+    summary = pd.DataFrame([{
+        "ShannonEntropy": shannon,
+        "WAR": war,
+        "UpgradeDowngradeRatio": ud_ratio,
+        "CureRate": cure,
+        "ASM": asm,
+        "HazardRate": avg_hazard,
+        "HalfLife": half_life,
+        "ChiSquare_pvalue": p_value,
+    }])
+
+    return matrix_df, summary
+
 
 # ----------------------------- #
 #  Excel export
@@ -224,10 +228,13 @@ def generate_excel(slippage_df, branch_summary, ac_type_summary, matrix):
         branch_summary.to_excel(writer, index=False, sheet_name="Summary by Branch")
         ac_type_summary.to_excel(writer, index=False, sheet_name="Summary by Ac Type")
 
-        enriched_matrix = build_risk_metrics(matrix)
-        enriched_matrix.to_excel(writer, index=False, sheet_name="Category Matrix")
+        cleaned_matrix, summary_metrics = build_risk_metrics(matrix)
+        cleaned_matrix.to_excel(writer, index=False, sheet_name="Category Matrix")
+        summary_metrics.to_excel(writer, index=False, sheet_name="Matrix Metrics")
+
     output.seek(0)
     return output
+
 
 # ----------------------------- #
 #  Streamlit UI
