@@ -29,7 +29,7 @@ CATEGORY_NAMES: Dict[str, str] = {
     "D": "Doubtful",
     "B": "Bad",
 }
-CATEGORY_ORDER: List[str] = ["Good", "Watchlist", "Substandard", "Doubtful", "Bad"]
+CATEGORY_ORDER: List[str] = ["Good", "Substandard", "Doubtful", "Bad"]
 
 # ----------------------------- #
 #  Pre-processing
@@ -63,7 +63,7 @@ def preprocess_df(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 # ----------------------------- #
-#  Slippage detection (Fixed)
+#  Slippage detection
 # ----------------------------- #
 def detect_slippage(df_prev: pd.DataFrame, df_curr: pd.DataFrame) -> pd.DataFrame:
     prev = df_prev[["Main Code", "Provision_rank", "Provision_category"]].rename(
@@ -83,7 +83,9 @@ def detect_slippage(df_prev: pd.DataFrame, df_curr: pd.DataFrame) -> pd.DataFram
     change_keys = merged["Main Code"]
 
     full = df_curr[df_curr["Main Code"].isin(change_keys)].copy()
-    prev_details = df_prev.set_index("Main Code")[["Provision_rank", "Provision_category"]].rename(
+    prev_details = df_prev.set_index("Main Code")[
+        ["Provision_rank", "Provision_category"]
+    ].rename(
         columns={
             "Provision_rank": "Provision_rank_prev",
             "Provision_category": "Provision_category_prev",
@@ -93,7 +95,7 @@ def detect_slippage(df_prev: pd.DataFrame, df_curr: pd.DataFrame) -> pd.DataFram
     full = full.set_index("Main Code")
     full["Provision_rank_prev"] = prev_details["Provision_rank_prev"]
     full["Provision_category_prev"] = prev_details["Provision_category_prev"]
-    full["Provision_category_curr"] = df_curr.set_index("Main Code").loc[full.index, "Provision_category"]
+    full["Provision_category_curr"] = full["Provision_category"]
 
     full["Movement"] = full.apply(
         lambda row: (
@@ -153,13 +155,15 @@ def summarize_matrix(df: pd.DataFrame, group_col: str) -> pd.DataFrame:
         matrices.append(mat.reset_index())
     summary_df = pd.concat(matrices, ignore_index=True, sort=False)
     cols = [group_col] + [c for c in summary_df.columns if c != group_col]
+
     for col in summary_df.columns:
         if summary_df[col].dtype in ["float64", "int64"]:
             summary_df[col] = summary_df[col].fillna(0).astype(int)
+
     return summary_df[cols]
 
 # ----------------------------- #
-#  Risk metrics
+#  Risk / transition metrics
 # ----------------------------- #
 def build_risk_metrics(matrix_df: pd.DataFrame) -> pd.DataFrame:
     mat = matrix_df.set_index("Provision_category_prev")
@@ -171,7 +175,10 @@ def build_risk_metrics(matrix_df: pd.DataFrame) -> pd.DataFrame:
     pi = pi[pi > 0]
     shannon = -np.sum(pi * np.log(pi)) if pi.size else np.nan
 
-    ranks = np.array([PROVISION_MAP[c] for c in CATEGORY_ORDER])
+    # Fix: Reverse CATEGORY_NAMES to get rank values
+    reverse_category = {v: k for k, v in CATEGORY_NAMES.items()}
+    ranks = np.array([PROVISION_MAP[reverse_category[c]] for c in CATEGORY_ORDER])
+
     row_probs = T / T.sum(axis=1, keepdims=True)
     avg_rank = (row_probs * ranks).sum(axis=1)
     war = np.average(avg_rank, weights=marginal)
