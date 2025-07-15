@@ -1,20 +1,25 @@
-import streamlit as st
+Implement streamlit secrets import streamlit as st
 import pandas as pd
 import io
 from datetime import datetime
 import traceback
 
-st.set_page_config(page_title="\ud83d\udcc9 Slippage Report Generator", layout="centered")
-st.title("\ud83d\udcca Slippage Report Generator")
+st.set_page_config(page_title="📉 Slippage Report Generator", layout="centered")
+st.title("📊 Slippage Report Generator")
 
 # -----------------------------
-# Constants via secrets
+# Constants
 # -----------------------------
-KEEP_COLUMNS = st.secrets.report_settings.keep_columns
-CATEGORY_ORDER = st.secrets.report_settings.category_order
-
+KEEP_COLUMNS = ['Branch Name', 'Main Code', 'Ac Type Desc', 'Name', 'Limit', 'Balance', 'Provision']
 PROVISION_MAP = {'G': 1, 'W': 2, 'S': 3, 'D': 4, 'B': 5}
-CATEGORY_NAMES = {'G': 'Good', 'W': 'Watchlist', 'S': 'Substandard', 'D': 'Doubtful', 'B': 'Bad'}
+CATEGORY_NAMES = {
+    'G': 'Good',
+    'W': 'Watchlist',
+    'S': 'Substandard',
+    'D': 'Doubtful',
+    'B': 'Bad'
+}
+CATEGORY_ORDER = ['Good', 'Substandard', 'Doubtful', 'Bad']
 
 # -----------------------------
 # Utility Functions
@@ -126,12 +131,12 @@ def generate_excel(slippage_df, branch_summary, ac_type_summary, matrix):
 # -----------------------------
 # UI
 # -----------------------------
-st.header("\ud83d\udcc1 Upload Excel Files")
-uploaded_curr = st.file_uploader("\ud83d\udcc5 Upload Current Period Excel File", type=["xlsx"])
-uploaded_prev = st.file_uploader("\ud83d\udd70\ufe0f Upload Previous Period Excel File", type=["xlsx"])
+st.header("📁 Upload Excel Files")
+uploaded_curr = st.file_uploader("📅 Upload Current Period Excel File", type=["xlsx"])
+uploaded_prev = st.file_uploader("🕰️ Upload Previous Period Excel File", type=["xlsx"])
 
 if uploaded_curr and uploaded_prev:
-    with st.spinner("\ud83d\udd04 Generating Slippage Report..."):
+    with st.spinner("🔄 Generating Slippage Report..."):
         try:
             df_curr = pd.read_excel(uploaded_curr, header=0)
             df_prev = pd.read_excel(uploaded_prev, header=0)
@@ -147,16 +152,16 @@ if uploaded_curr and uploaded_prev:
 
             excel_data = generate_excel(slippage_df, branch_summary, ac_type_summary, matrix)
 
-            st.success("\u2705 Report Ready!")
+            st.success("✅ Report Ready!")
 
             st.download_button(
-                label="\ud83d\udce4 Download Excel Report",
+                label="📤 Download Excel Report",
                 data=excel_data,
                 file_name=f"slippage_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
         except Exception as e:
-            st.error("\u274c An error occurred during processing.")
+            st.error("❌ An error occurred during processing.")
             with st.expander("Show error details"):
                 st.code(traceback.format_exc())
