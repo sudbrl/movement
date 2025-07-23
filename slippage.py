@@ -65,15 +65,17 @@ def detect_slippage(df_prev, df_curr):
         columns={'Provision_rank': 'Provision_rank_prev', 'Provision_category': 'Provision_category_prev'}
     )
 
-    # ✅ Replaced index-based assignment with map to avoid reindex error
-    full['Provision_rank_prev'] = full['Main Code'].map(prev_details['Provision_rank_prev'])
-    full['Provision_category_prev'] = full['Main Code'].map(prev_details['Provision_category_prev'])
+    full = full.set_index('Main Code')
+    full['Provision_rank_prev'] = prev_details['Provision_rank_prev']
+    full['Provision_category_prev'] = prev_details['Provision_category_prev']
 
     full['Movement'] = full.apply(lambda row: (
         "Slippage" if row['Provision_rank'] > row['Provision_rank_prev']
         else "Upgrade" if row['Provision_rank'] < row['Provision_rank_prev']
         else "Stable"
     ), axis=1)
+
+    full.reset_index(inplace=True)
 
     columns_out = ['Branch Name', 'Main Code', 'Ac Type Desc', 'Name', 'Limit', 'Balance',
                    'Provision_category_prev', 'Provision_category', 'Movement']
